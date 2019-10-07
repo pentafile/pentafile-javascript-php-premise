@@ -11,8 +11,8 @@ class Pentafile {
     private $appkey;
     private $api;
 
-    public function __construct($host, $appkey) {
-        $this->host = $host . "/api/php/files/";
+    public function __construct($appkey) {
+        $this->host = "https://api.pentafilestore.com/storage/v1";
         $this->appkey = $appkey;
         $this->api = new RestClient(['base_url' => $this->host]);
     }
@@ -21,19 +21,36 @@ class Pentafile {
      * Método para cargar un archivo a Pentafile
      * @param type $filename - nombre del archivo,file.png,archivo.txt,etc
      * @param type $content - contenido del archivo
+     * @options type $options - Configuracion
      * @return \ObjectFile
      * @throws PentafileException
      */
-    public function uploadFile($filename, $content) {
+    public function uploadFile($filename, $content, $options = []) {
         try {
-            $fields = array("token" => $this->appkey, "filename" => basename($filename), "name" => basename($filename));
+            $fields = array("random" => "false", "name" => basename($filename));
+            if (empty($options)) {
+                $fields = array("random" => "true", "name" => basename($filename));
+            } else {
+                $fields = array();
+                foreach ($options as $key => $value) {
+                    if ($key == "random") {
+                        if ($value == TRUE) {
+                            $fields[$key] = "true";
+                        } else {
+                            $fields[$key] = "false";
+                        }
+                    } else {
+                        $fields[$key] = $value;
+                    }
+                }
+                $fields['name'] = basename($filename);
+            }
             $files = array($filename => $content);
             $boundary = uniqid();
             $post_form = $this->build_form_upload($boundary, $fields, $files);
-            $result = $this->api->upload('upload', $post_form);
+            $result = $this->api->upload("/repositories/" . $this->appkey, $post_form);
             if ($result->info->http_code == 200) {
-                $bean = new ObjectFile($result->response);
-                return $bean;
+                return new ObjectFile($result->response);
             } else {
                 $source = (array) json_decode($result->response);
                 throw new PentafileException($source['message']);
@@ -51,7 +68,7 @@ class Pentafile {
      */
     public function downloadFile($key) {
         try {
-            $result = $this->api->get('download/' . $key . '/' . $this->appkey);
+            $result = $this->api->get("/repositories/" . $this->appkey . '/' . $key);
             if ($result->info->http_code == 200) {
                 return $result->response;
             } else {
@@ -71,8 +88,7 @@ class Pentafile {
      */
     public function deleteFile($key) {
         try {
-            $result = $this->api->post('delete/' . $key . '/' . $this->appkey, array(), array(
-                'Content-Type' => 'application/json'));
+            $result = $this->api->delete("/repositories/" . $this->appkey . '/' . $key, array(), array('Content-Type' => 'application/json'));
             if ($result->info->http_code == 204) {
                 return;
             } else {
@@ -92,15 +108,15 @@ class Pentafile {
      */
     public function infoFile($key) {
         try {
-            $result = $this->api->get('info/' . $key . '/' . $this->appkey);
+            $result = $this->api->get("/repositories/" . $this->appkey . '/' . $key . ':info', array(), array('Content-Type' => 'application/json'));
             if ($result->info->http_code == 200) {
-                $bean = new ObjectFile($result->response);
-                return $bean;
+                return new ObjectFile($result->response);
             } else {
                 $source = (array) json_decode($result->response);
                 throw new PentafileException($source['message']);
             }
         } catch (Exception $ex) {
+            print_r($ex);
             throw new PentafileException($ex->getMessage());
         }
     }
@@ -149,7 +165,7 @@ class ObjectFile {
     /**
      * name nombre del archivo, proporcionado por el cliente
      */
-    private $filename;
+    private $id;
 
     /**
      * Date fecha de carga
@@ -174,18 +190,14 @@ class ObjectFile {
     public function __construct($data) {
         $source = (array) json_decode($data);
         $this->key = $source['key'];
-        $this->filename = $source['filename'];
+        $this->id = $source['id'];
         $this->type = $source['type'];
-        $this->size = intval($source['size']);
+        $this->size = $source['size'];
         $this->url = $source['url'];
     }
 
     public function getKey() {
         return $this->key;
-    }
-
-    public function getFilename() {
-        return $this->filename;
     }
 
     public function getCreated() {
@@ -208,10 +220,6 @@ class ObjectFile {
         $this->key = $key;
     }
 
-    public function setFilename($filename) {
-        $this->filename = $filename;
-    }
-
     public function setCreated($created) {
         $this->created = $created;
     }
@@ -226,6 +234,14 @@ class ObjectFile {
 
     public function setUrl($url) {
         $this->url = $url;
+    }
+
+    function getId() {
+        return $this->id;
+    }
+
+    function setId($id) {
+        $this->id = $id;
     }
 
 }
@@ -263,7 +279,6 @@ class RestClient implements Iterator, ArrayAccess {
             'username' => NULL,
             'password' => NULL
         ];
-
         $this->options = array_merge($default_options, $options);
         if (array_key_exists('decoders', $options))
             $this->options['decoders'] = array_merge(
@@ -310,7 +325,6 @@ class RestClient implements Iterator, ArrayAccess {
         $this->decode_response();
         if (!$this->offsetExists($key))
             return NULL;
-
         return is_array($this->decoded_response) ?
                 $this->decoded_response[$key] : $this->decoded_response->{$key};
     }
@@ -361,6 +375,7 @@ class RestClient implements Iterator, ArrayAccess {
         ];
         $curlopt[CURLOPT_POST] = TRUE;
         $curlopt[CURLOPT_POSTFIELDS] = $data;
+        $curlopt[CURLOPT_SSL_VERIFYPEER] = false;
         if ($client->options['base_url']) {
             $client->url = $client->options['base_url'] . $client->url;
         }
@@ -388,10 +403,6 @@ class RestClient implements Iterator, ArrayAccess {
             CURLOPT_RETURNTRANSFER => TRUE,
             CURLOPT_USERAGENT => $client->options['user_agent']
         ];
-
-        if ($client->options['username'] && $client->options['password'])
-            $curlopt[CURLOPT_USERPWD] = sprintf("%s:%s", $client->options['username'], $client->options['password']);
-
         if (count($client->options['headers']) || count($headers)) {
             $curlopt[CURLOPT_HTTPHEADER] = [];
             $headers = array_merge($client->options['headers'], $headers);
@@ -401,7 +412,6 @@ class RestClient implements Iterator, ArrayAccess {
                 }
             }
         }
-
         if ($client->options['format'])
             $client->url .= '.' . $client->options['format'];
         if (is_array($parameters)) {
@@ -418,18 +428,20 @@ class RestClient implements Iterator, ArrayAccess {
         } elseif (strtoupper($method) != 'GET') {
             $curlopt[CURLOPT_CUSTOMREQUEST] = strtoupper($method);
             $curlopt[CURLOPT_POSTFIELDS] = $parameters_string;
+        } elseif (strtoupper($method) != 'DELETE') {
+            $curlopt[CURLOPT_CUSTOMREQUEST] = strtoupper($method);
+            $curlopt[CURLOPT_POSTFIELDS] = $parameters_string;
         } elseif ($parameters_string) {
             $client->url .= strpos($client->url, '?') ? '&' : '?';
             $client->url .= $parameters_string;
         }
-
         if ($client->options['base_url']) {
             if ($client->url[0] != '/' && substr($client->options['base_url'], -1) != '/')
                 $client->url = '/' . $client->url;
             $client->url = $client->options['base_url'] . $client->url;
         }
         $curlopt[CURLOPT_URL] = $client->url;
-
+        $curlopt[CURLOPT_SSL_VERIFYPEER] = false;
         if ($client->options['curl_options']) {
             // array_merge would reset our numeric keys.
             foreach ($client->options['curl_options'] as $key => $value) {
@@ -437,11 +449,9 @@ class RestClient implements Iterator, ArrayAccess {
             }
         }
         curl_setopt_array($client->handle, $curlopt);
-
         $client->parse_response(curl_exec($client->handle));
         $client->info = (object) curl_getinfo($client->handle);
         $client->error = curl_error($client->handle);
-
         curl_close($client->handle);
         return $client;
     }
@@ -464,7 +474,6 @@ class RestClient implements Iterator, ArrayAccess {
                 list($key, $value) = explode(':', $line, 2);
                 $key = trim(strtolower(str_replace('-', '_', $key)));
                 $value = trim($value);
-
                 if (empty($headers[$key]))
                     $headers[$key] = $value;
                 elseif (is_array($headers[$key]))
@@ -473,7 +482,6 @@ class RestClient implements Iterator, ArrayAccess {
                     $headers[$key] = [$headers[$key], $value];
             }
         } while ($line = strtok("\n"));
-
         $this->headers = (object) $headers;
         $this->response = strtok("");
     }
@@ -482,16 +490,13 @@ class RestClient implements Iterator, ArrayAccess {
         if (!$this->response)
             throw new RestClientException(
             "A response must exist before it can be decoded.");
-
         // User-defined format. 
         if (!empty($this->options['format']))
             return $this->options['format'];
-
         // Extract format from response content-type header. 
         if (!empty($this->headers->content_type))
             if (preg_match($this->options['format_regex'], $this->headers->content_type, $matches))
                 return $matches[2];
-
         throw new RestClientException(
         "Response format could not be determined.");
     }
@@ -502,11 +507,9 @@ class RestClient implements Iterator, ArrayAccess {
             if (!array_key_exists($format, $this->options['decoders']))
                 throw new RestClientException("'${format}' is not a supported " .
                 "format, register a decoder to handle this response.");
-
             $this->decoded_response = call_user_func(
                     $this->options['decoders'][$format], $this->response);
         }
-
         return $this->decoded_response;
     }
 
