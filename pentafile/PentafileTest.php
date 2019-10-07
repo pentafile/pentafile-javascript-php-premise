@@ -9,7 +9,7 @@ require './Pentafile.php';
 /**
  * Instancia de la variable PENTAFILE
  */
-$PentafileAPI = new Pentafile("http://IP-SERVER:8080/pentafile", "appkey");
+$PentafileAPI = new Pentafile("appkey");
 
 /**
  * Carga de archivo de disco
@@ -30,14 +30,16 @@ uploadFile($PentafileAPI, basename($file_path), $file_content);
  */
 function uploadFile($API, $filename, $content_file) {
     try {
+        //$options = Array("random" => TRUE, "folder" => "mydocs");
+        // $API->uploadFile($filename, $content_file,$options);
         $ObjectFile = $API->uploadFile($filename, $content_file);
-        echo $ObjectFile->getKey() . "<br>";
-        echo $ObjectFile->getFilename() . "<br>";
-        echo $ObjectFile->getSize() . "<br>";
-        echo $ObjectFile->getType() . "<br>";
-        echo $ObjectFile->getUrl() . "<br>";
+        echo "key : " . $ObjectFile->getKey() . "<br>";
+        echo "id : " . $ObjectFile->getId() . "<br>";
+        echo "size : " . $ObjectFile->getSize() . "<br>";
+        echo "type : " . $ObjectFile->getType() . "<br>";
+        echo "url : " . $ObjectFile->getUrl() . "<br>";
     } catch (Exception $ex) {
-        echo "Error: " . $ex;
+        echo $ex;
     }
 }
 
@@ -49,11 +51,11 @@ function uploadFile($API, $filename, $content_file) {
 function infoFile($API, $key_file) {
     try {
         $ObjectFile = $API->infoFile($key_file);
-        echo $ObjectFile->getKey() . "<br>";
-        echo $ObjectFile->getFilename() . "<br>";
-        echo $ObjectFile->getSize() . "<br>";
-        echo $ObjectFile->getType() . "<br>";
-        echo $ObjectFile->getUrl() . "<br>";
+        echo "key : " . $ObjectFile->getKey() . "<br>";
+        echo "id : " . $ObjectFile->getId() . "<br>";
+        echo "size : " . $ObjectFile->getSize() . "<br>";
+        echo "type : " . $ObjectFile->getType() . "<br>";
+        echo "url : " . $ObjectFile->getUrl() . "<br>";
     } catch (Exception $ex) {
         echo "Error: " . $ex;
     }
@@ -67,7 +69,7 @@ function infoFile($API, $key_file) {
 function deleteFile($API, $key_file) {
     try {
         $API->deleteFile($key_file);
-        // No return content
+        echo 'DELETE OK';
     } catch (Exception $ex) {
         echo "Error: " . $ex;
     }
