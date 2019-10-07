@@ -28,9 +28,7 @@ class Pentafile {
     public function uploadFile($filename, $content, $options = []) {
         try {
             $fields = array("random" => "false", "name" => basename($filename));
-            if (empty($options)) {
-                $fields = array("random" => "true", "name" => basename($filename));
-            } else {
+            if (!empty($options)) {
                 $fields = array();
                 foreach ($options as $key => $value) {
                     if ($key == "random") {
