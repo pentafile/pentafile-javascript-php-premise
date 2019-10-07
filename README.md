@@ -35,8 +35,9 @@ uploadFile($PentafileAPI, basename($file_path), $file_content);
  */
 function uploadFile($API, $filename, $content_file) {
     try {
-        $options = Array("random" => TRUE, "folder" => "mydocs");
-        $ObjectFile = $API->uploadFile($filename, $content_file,$options);
+        //$options = Array("random" => TRUE, "folder" => "mydocs");
+        // $API->uploadFile($filename, $content_file,$options);
+        $ObjectFile = $API->uploadFile($filename, $content_file);
         echo "key : " . $ObjectFile->getKey() . "<br>";
         echo "id : " . $ObjectFile->getId() . "<br>";
         echo "size : " . $ObjectFile->getSize() . "<br>";
